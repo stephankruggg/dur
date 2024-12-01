@@ -15,10 +15,15 @@ class ClientKeyValueStore:
         self._transaction_id = 0
 
         self._socket = None
-        self._server_address, self._server_port = self._choose_random_server()
+        self._server_address, self._server_port, _, _ = self._choose_random_server()
 
     def _choose_random_server(self):
         servers = self._fetch_all_servers()
+
+        for i in range(len(servers)):
+            if servers[i][0] == Constants.SERVER_SEQUENCER_ADDRESS and servers[i][1] == Constants.SERVER_SEQUENCER_PORT:
+                del servers[i]
+                break
 
         return random.choice(servers)
 
@@ -27,7 +32,7 @@ class ClientKeyValueStore:
             s.connect((Constants.SERVER_DISCOVERER_ADDRESS, Constants.SERVER_DISCOVERER_PORT))
 
             addr, port = s.getsockname()
-            message = struct.pack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, 2, socket.inet_aton(addr), port)
+            message = struct.pack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, 2, socket.inet_aton(addr), port, socket.inet_aton(addr), port)
 
             s.send(message)
 
@@ -96,10 +101,10 @@ class ClientKeyValueStore:
         ar_socket_address, ar_socket_port = awaiting_response_socket.getsockname()
         print(f'Client created response socket -> Address {ar_socket_address}, Port {ar_socket_port}')
 
-        message = struct.pack(Constants.DELIVER_REQUEST_INITIAL_FORMAT, 1, socket.inet_aton(ar_socket_address), ar_socket_port)
+        message = struct.pack(Constants.DELIVER_REQUEST_INITIAL_FORMAT, 1, socket.inet_aton(ar_socket_address), ar_socket_port, self._transaction_id)
         message += data
 
-        for server_address, server_port in self._fetch_all_servers():
+        for server_address, server_port, _, _ in self._fetch_all_servers():
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 print(f'Client sending commit to server -> Address {server_address}, Port {server_port}')
                 s.connect((server_address, server_port))
