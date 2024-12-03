@@ -4,7 +4,7 @@ import pickle
 import random
 import traceback
 
-from src.utils.constants import Constants
+from utils.constants import Constants
 
 class ClientKeyValueStore:
     def __init__(self, id):

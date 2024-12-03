@@ -3,7 +3,7 @@ import struct
 import pickle
 import traceback
 
-from src.utils.constants import Constants
+from utils.constants import Constants
 
 class ServerSequencer:
     def __init__(self):

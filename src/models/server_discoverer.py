@@ -3,7 +3,7 @@ import traceback
 import pickle
 import struct
 
-from src.utils.constants import Constants
+from utils.constants import Constants
 
 class ServerDiscoverer:
     def __init__(self):

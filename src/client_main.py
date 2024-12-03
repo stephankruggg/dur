@@ -1,7 +1,7 @@
 import sys
 import code
 
-from src.models.client_key_value_store import ClientKeyValueStore
+from models.client_key_value_store import ClientKeyValueStore
 
 def main():
     if len(sys.argv) < 2:

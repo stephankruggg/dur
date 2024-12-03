@@ -6,7 +6,7 @@ import traceback
 import pickle
 import threading
 
-from src.utils.constants import Constants
+from utils.constants import Constants
 
 class ServerKeyValueStore:
     def __init__(self, id):

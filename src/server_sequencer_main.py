@@ -1,4 +1,4 @@
-from src.models.server_sequencer import ServerSequencer
+from models.server_sequencer import ServerSequencer
 
 def main():
     print('Welcome to the server sequencer!')

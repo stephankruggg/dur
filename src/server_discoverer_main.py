@@ -1,4 +1,4 @@
-from src.models.server_discoverer import ServerDiscoverer
+from models.server_discoverer import ServerDiscoverer
 
 def main():
     print('Welcome to the server discoverer!')

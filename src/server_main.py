@@ -1,7 +1,7 @@
 import sys
 import code
 
-from src.models.server_key_value_store import ServerKeyValueStore
+from models.server_key_value_store import ServerKeyValueStore
 
 def main():
     if len(sys.argv) < 2:
