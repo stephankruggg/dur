@@ -7,6 +7,8 @@ import pickle
 import threading
 
 from utils.constants import Constants
+from utils.logger import logger
+
 
 class ServerKeyValueStore:
     def __init__(self, id):
@@ -42,11 +44,11 @@ class ServerKeyValueStore:
         self._database_path = Constants.FOLDER_NAME / str(Constants.EXAMPLE_INSTACE) / f'server{self._id}'
 
         os.makedirs(self._database_path, exist_ok=True)
-        print('Server folder successfully initialized!')
+        logger.info('Server folder successfully initialized!')
 
         source_path = Constants.FOLDER_NAME / str(Constants.EXAMPLE_INSTACE) / 'data'
         if not os.path.isfile(source_path):
-            print('No model DB provided. Skipping creating a copy.')
+            logger.warning('No model DB provided. Skipping creating a copy.')
             return
 
         with shelve.open(source_path) as source:
@@ -55,10 +57,10 @@ class ServerKeyValueStore:
                     destination[key] = value
                     print((key, value))
 
-        print('Data successfully copied from model DB!')
+        logger.info('Data successfully copied from model DB!')
 
     def _connect_to_server_discoverer(self):
-        print('Attempting to get known by the server discoverer.')
+        logger.info('Attempting to get known by the server discoverer.')
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((Constants.SERVER_DISCOVERER_ADDRESS, Constants.SERVER_DISCOVERER_PORT))
@@ -67,7 +69,7 @@ class ServerKeyValueStore:
 
             s.send(message)
 
-            print('Server now known!')
+            logger.info('Server now known!')
 
     def _receive_sequence_numbers(self):
         while True:
@@ -79,20 +81,20 @@ class ServerKeyValueStore:
                 address, port, t_id, sn = struct.unpack(Constants.SERVER_SEQUENCER_FORMAT, data)
                 address = socket.inet_ntoa(address)
 
-                print(f'Server KVS received sequence number {sn} for: Address {address}, Port {port}, Transaction ID {t_id}')
+                logger.info(f'Server KVS received sequence number {sn} for: Address {address}, Port {port}, Transaction ID {t_id}')
 
-            print(f'Server KVS updating holdback')
+            logger.info(f'Server KVS updating holdback')
             self._holdback[(address, port, t_id)] = sn
 
-            print('Server KVS notifying all listeners of the holdback update')
+            logger.info('Server KVS notifying all listeners of the holdback update')
             self._holdback_lock.release()
 
     def _run(self):
         while True:
-            print('KVS Server listening...')
+            logger.info('KVS Server listening...')
 
             connection, address = self._socket.accept()
-            print(f'KVS Server connected to {address}')
+            logger.info(f'KVS Server connected to {address}')
 
             # To do: Transform this into separate thread (necessary)
             try:
@@ -103,26 +105,26 @@ class ServerKeyValueStore:
                 elif data[0] == 1:
                     self._deliver_transaction(data)
             except Exception as e:
-                print(f'Server KVS -> An error occurred: {e}')
+                logger.error(f'Server KVS -> An error occurred: {e}')
                 traceback.print_exc()
 
     def _fetch_value(self, data, connection):
         item = data[1:].decode('utf-8').strip('\x00')
 
-        print(f'Server KVS attempting to find item -> {item}')
+        logger.info(f'Server KVS attempting to find item -> {item}')
         try:
             with shelve.open(Constants.FOLDER_NAME / str(Constants.EXAMPLE_INSTACE) / f'server{self._id}' / 'db') as db:
                 version, value = db[item]
 
-            print(f'Server KVS found item {item} -> Version {version}, Value {value}')
+            logger.info(f'Server KVS found item {item} -> Version {version}, Value {value}')
             message = struct.pack(Constants.READ_RESPONSE_INITIAL_FORMAT, version)
             message += pickle.dumps(value)
         except KeyError:
-            print(f'Item {item} not found in database.')
+            logger.error(f'Item {item} not found in database.')
             connection.close()
             return
 
-        print(f'Server KVS sending value of item {item}')
+        logger.info(f'Server KVS sending value of item {item}')
         connection.sendall(message)
 
     def _deliver_transaction(self, data):
@@ -131,12 +133,12 @@ class ServerKeyValueStore:
 
         write_set, read_set = pickle.loads(data[11:])
 
-        print(f'Server KVS received commit from {requester_address}:{requester_port} -> Transaction ID {message_id}, Write set {write_set}, Read set {read_set}')
+        logger.info(f'Server KVS received commit from {requester_address}:{requester_port} -> Transaction ID {message_id}, Write set {write_set}, Read set {read_set}')
 
         holdback_key = (requester_address, requester_port, message_id)
 
         while holdback_key not in self._holdback.keys() or self._holdback[holdback_key] != self._sequence_number:
-            print(f'Server KVS waiting for sequence number for transaction {message_id}')
+            logger.info(f'Server KVS waiting for sequence number for transaction {message_id}')
             self._holdback_lock.acquire()
 
         with shelve.open(Constants.FOLDER_NAME / str(Constants.EXAMPLE_INSTACE) / f'server{self._id}' / 'db') as db:
@@ -144,7 +146,7 @@ class ServerKeyValueStore:
                 try:
                     item_version = db[key][0]
                     if item_version > value[1]:
-                        print(f'Client KVS has read an out of date version of item {key}. Current version {item_version}, CKVS version {value[1]}. Transaction needs to be aborted.')
+                        logger.warning(f'Client KVS has read an out of date version of item {key}. Current version {item_version}, CKVS version {value[1]}. Transaction needs to be aborted.')
                         self._respond_to_client(requester_address, requester_port, False)
                         return
                 except KeyError:
@@ -156,40 +158,41 @@ class ServerKeyValueStore:
                 try:
                     next_version = db[key][0] + 1
 
-                    print(f'Server KVS updating version and value of item {key}: ({next_version - 1}, {db[key][1]}) -> ({next_version}, {value})')
+                    logger.info(f'Server KVS updating version and value of item {key}: ({next_version - 1}, {db[key][1]}) -> ({next_version}, {value})')
                 except KeyError:
                     next_version = 0
 
-                    print(f'Server KVS creating item {key}: (0, {value})')
+                    logger.info(f'Server KVS creating item {key}: (0, {value})')
 
                 db[key] = (next_version, value)
 
-        print(f'Server KVS finished commiting the transaction')
+        logger.info(f'Server KVS finished commiting the transaction')
         self._respond_to_client(requester_address, requester_port, True)
 
-        print('Server KVS removing transaction from holdback')
+        logger.info('Server KVS removing transaction from holdback')
         del self._holdback[holdback_key]
 
-        print('Server KVS updating sequence number')
+        logger.info('Server KVS updating sequence number')
         self._sequence_number += 1
 
-        print('Server KVS notifying all listeners of the sequence number update')
+        logger.info('Server KVS notifying all listeners of the sequence number update')
         self._holdback_lock.release()
 
     def _respond_to_client(self, address, port, commit):
         if commit:
-            print('Attempting to send commit message to client')
+            logger.info('Attempting to send commit message to client')
             message = b'1'
         else:
-            print('Attempting to send abort message to client')
+            logger.info('Attempting to send abort message to client')
             message = b'0'
 
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                print(f'Server connecting to client -> Address {address}, Port {port}')
+                logger.info(f'Server connecting to client -> Address {address}, Port {port}')
                 s.connect((address, port))
 
-                print(f'Server sending message -> {message}')
+                logger.info(f'Server sending message -> {message}')
                 s.send(message)
         except Exception as e:
+            logger.error(f'Server KVS -> An error occurred: {e}')
             return

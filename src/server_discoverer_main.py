@@ -1,7 +1,8 @@
+from utils.logger import logger
 from models.server_discoverer import ServerDiscoverer
 
 def main():
-    print('Welcome to the server discoverer!')
+    logger.info('Welcome to the server discoverer!')
 
     ServerDiscoverer()
 

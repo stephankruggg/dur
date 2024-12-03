@@ -1,7 +1,8 @@
 from models.server_sequencer import ServerSequencer
+from utils.logger import logger
 
 def main():
-    print('Welcome to the server sequencer!')
+    logger.info('Welcome to the server sequencer!')
 
     ServerSequencer()
 

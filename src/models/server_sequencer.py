@@ -4,6 +4,7 @@ import pickle
 import traceback
 
 from utils.constants import Constants
+from utils.logger import logger
 
 class ServerSequencer:
     def __init__(self):
@@ -21,7 +22,7 @@ class ServerSequencer:
         self._run()
 
     def _connect_to_server_discoverer(self):
-        print('Attempting to get known by the server discoverer.')
+        logger.info('Attempting to get known by the server discoverer.')
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((Constants.SERVER_DISCOVERER_ADDRESS, Constants.SERVER_DISCOVERER_PORT))
@@ -30,11 +31,11 @@ class ServerSequencer:
 
             s.send(message)
 
-            print('Server now known!')
+            logger.info('Server now known!')
 
     def _run(self):
         while True:
-            print('Server sequencer listening...')
+            logger.info('Server sequencer listening...')
 
             connection, _ = self._socket.accept()
 
@@ -45,7 +46,7 @@ class ServerSequencer:
 
                 self._sequence_number += 1
             except Exception as e:
-                print(f'Server KVS -> An error occurred: {e}')
+                logger.error(f'Server KVS -> An error occurred: {e}')
                 traceback.print_exc()
 
     def _send_sequence_number(self, data):
@@ -61,7 +62,7 @@ class ServerSequencer:
                 continue
 
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                print(f'Server sequencer sending sequence number to server -> Sequence number {self._sequence_number}, Address {server_sn_address}, Port {server_sn_port}')
+                logger.info(f'Server sequencer sending sequence number to server -> Sequence number {self._sequence_number}, Address {server_sn_address}, Port {server_sn_port}')
                 s.connect((server_sn_address, server_sn_port))
 
                 s.send(message)

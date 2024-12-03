@@ -5,6 +5,7 @@ import random
 import traceback
 
 from utils.constants import Constants
+from utils.logger import logger
 
 class ClientKeyValueStore:
     def __init__(self, id):
@@ -60,7 +61,7 @@ class ClientKeyValueStore:
         value, version = self._read_from_server(item)
 
         if value is None and version is None:
-            print('Item not found')
+            logger.error('Item not found')
             return None
 
         self._read_set[item] = (value, version)
@@ -91,7 +92,7 @@ class ClientKeyValueStore:
         self._reset_transaction()
 
     def commit(self):
-        print(f'Client commit in progress -> Write set: {self._write_set}, Read set: {self._read_set}')
+        logger.info(f'Client commit in progress -> Write set: {self._write_set}, Read set: {self._read_set}')
         data = pickle.dumps((self._write_set, self._read_set))
 
         awaiting_response_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -99,29 +100,29 @@ class ClientKeyValueStore:
         awaiting_response_socket.listen()
 
         ar_socket_address, ar_socket_port = awaiting_response_socket.getsockname()
-        print(f'Client created response socket -> Address {ar_socket_address}, Port {ar_socket_port}')
+        logger.info(f'Client created response socket -> Address {ar_socket_address}, Port {ar_socket_port}')
 
         message = struct.pack(Constants.DELIVER_REQUEST_INITIAL_FORMAT, 1, socket.inet_aton(ar_socket_address), ar_socket_port, self._transaction_id)
         message += data
 
         for server_address, server_port, _, _ in self._fetch_all_servers():
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                print(f'Client sending commit to server -> Address {server_address}, Port {server_port}')
+                logger.info(f'Client sending commit to server -> Address {server_address}, Port {server_port}')
                 s.connect((server_address, server_port))
 
                 s.send(message)
 
         connection, _ = awaiting_response_socket.accept()
-        print('Client received response from server.')
+        logger.info('Client received response from server.')
         try:
             data = connection.recv(1)
 
             if data == b'0':
-                print('Transaction aborted!')
+                logger.warning('Transaction aborted!')
             else:
-                print('Transaction committed!')
+                logger.info('Transaction committed!')
         except Exception as e:
-                print(f'Client KVS -> An error occurred: {e}')
+                logger.error(f'Client KVS -> An error occurred: {e}')
                 traceback.print_exc()
         finally:
             awaiting_response_socket.close()
