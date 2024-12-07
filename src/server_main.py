@@ -15,7 +15,7 @@ def main():
     logger.info('Your KVS will begin running promptly.')
     logger.info(f'Your environment will be created in a server {id} folder. Enjoy!')
 
-    db = ServerKeyValueStore(id)
+    ServerKeyValueStore(id)
 
 if __name__ == '__main__':
     main()

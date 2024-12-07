@@ -90,13 +90,17 @@ class ServerKeyValueStore:
             self._holdback_lock.release()
 
     def _run(self):
-        while True:
-            logger.info('KVS Server listening...')
+        try:
+            while True:
+                logger.info('KVS Server listening...')
 
-            connection, address = self._socket.accept()
-            logger.info(f'KVS Server connected to {address}')
+                connection, address = self._socket.accept()
+                logger.info(f'KVS Server connected to {address}')
 
-            threading.Thread(target=self._handle_connection, args=(connection,)).start()
+                threading.Thread(target=self._handle_connection, args=(connection,)).start()
+        except KeyboardInterrupt:
+            logger.info('Exit command received.')
+            self._disconnect()
 
     def _handle_connection(self, connection):
         try:
@@ -198,3 +202,16 @@ class ServerKeyValueStore:
         except Exception as e:
             logger.error(f'Server KVS -> An error occurred: {e}')
             return
+
+    def _disconnect(self):
+        logger.info('Attempting to disconnect server from the server discoverer.')
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((Constants.SERVER_DISCOVERER_ADDRESS, Constants.SERVER_DISCOVERER_PORT))
+
+            message = struct.pack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, 1, socket.inet_aton(self._address), self._port, socket.inet_aton(self._sequence_number_address), self._sequence_number_port)
+
+            s.send(message)
+
+            # To do: Finish run
+            logger.info('Server now disconnected!')

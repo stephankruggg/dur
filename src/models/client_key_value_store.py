@@ -5,6 +5,7 @@ import random
 import traceback
 
 from utils.constants import Constants
+from utils.exceptions import ServersNotFoundException
 from utils.logger import logger
 
 class ClientKeyValueStore:
@@ -47,7 +48,12 @@ class ClientKeyValueStore:
 
                 response += packet
 
-        return pickle.loads(response)
+        servers = pickle.loads(response)
+
+        if len(servers) == 0:
+            raise ServersNotFoundException()
+
+        return servers
 
     def read(self, item):
         value = self._write_set.get(item)
@@ -69,13 +75,22 @@ class ClientKeyValueStore:
         return value
 
     def _read_from_server(self, item):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((self._server_address, self._server_port))
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(20)
 
-            message = struct.pack(Constants.READ_REQUEST_FORMAT, 0, item.encode('utf-8'))
-            s.sendall(message)
+                s.connect((self._server_address, self._server_port))
 
-            data = s.recv(4096)
+                message = struct.pack(Constants.READ_REQUEST_FORMAT, 0, item.encode('utf-8'))
+                s.sendall(message)
+
+                data = s.recv(4096)
+        except Exception as e:
+            logger.warning('Attempt to read from server KVS failed. Attempting to find another server.')
+
+            self._server_address, self._server_port, _, _ = self._choose_random_server()
+
+            return self._read_from_server(item)
 
         if not data:
             return None, None

@@ -2,6 +2,7 @@ import sys
 import code
 
 from models.client_key_value_store import ClientKeyValueStore
+from utils.exceptions import ServersNotFoundException
 from utils.logger import logger
 
 def main():
@@ -14,7 +15,12 @@ def main():
     logger.info('Welcome to your client!')
     logger.info('Let us connect you to a KVS.')
 
-    db = ClientKeyValueStore(id)
+    try:
+        db = ClientKeyValueStore(id)
+    except ServersNotFoundException as e:
+        logger.error(e)
+        return
+
     logger.info('KVS connected.')
 
     local_context = locals()

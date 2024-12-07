@@ -38,7 +38,6 @@ class ServerDiscoverer:
                 if message_id == 0:
                     self._connect(addr, port, sn_addr, sn_port)
                 elif message_id == 1:
-                    # To do: implement disconnect on servers
                     self._disconnect(addr, port, sn_addr, sn_port)
                 elif message_id == 2:
                     self._fetch_all_servers(connection)
