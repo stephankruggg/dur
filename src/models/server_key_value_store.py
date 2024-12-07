@@ -96,17 +96,19 @@ class ServerKeyValueStore:
             connection, address = self._socket.accept()
             logger.info(f'KVS Server connected to {address}')
 
-            # To do: Transform this into separate thread (necessary)
-            try:
-                data = connection.recv(4096)
+            threading.Thread(target=self._handle_connection, args=(connection,)).start()
 
-                if data[0] == 0:
-                    self._fetch_value(data, connection)
-                elif data[0] == 1:
-                    self._deliver_transaction(data)
-            except Exception as e:
-                logger.error(f'Server KVS -> An error occurred: {e}')
-                traceback.print_exc()
+    def _handle_connection(self, connection):
+        try:
+            data = connection.recv(4096)
+
+            if data[0] == 0:
+                self._fetch_value(data, connection)
+            elif data[0] == 1:
+                self._deliver_transaction(data)
+        except Exception as e:
+            logger.error(f'Server KVS -> An error occurred: {e}')
+            traceback.print_exc()
 
     def _fetch_value(self, data, connection):
         item = data[1:].decode('utf-8').strip('\x00')
