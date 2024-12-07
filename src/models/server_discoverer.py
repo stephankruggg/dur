@@ -2,6 +2,7 @@ import socket
 import traceback
 import pickle
 import struct
+import threading
 
 from utils.constants import Constants
 from utils.logger import logger
@@ -23,27 +24,29 @@ class ServerDiscoverer:
             connection, address = self._socket.accept()
             logger.info(f'Server discoverer connected to {address}')
 
-            # To do: Transform this into separate thread
-            with connection:
-                try:
-                    data, _ = connection.recvfrom(4096)
+            threading.Thread(target=self._handle_connection, args=(connection,)).start()
 
-                    message_id, addr, port, sn_addr, sn_port = struct.unpack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, data)
-                    addr = socket.inet_ntoa(addr)
-                    sn_addr = socket.inet_ntoa(sn_addr)
+    def _handle_connection(self, connection):
+        with connection:
+            try:
+                data, _ = connection.recvfrom(4096)
 
-                    if message_id == 0:
-                        self._connect(addr, port, sn_addr, sn_port)
-                    elif message_id == 1:
-                        # To do: implement disconnect on servers
-                        self._disconnect(addr, port, sn_addr, sn_port)
-                    elif message_id == 2:
-                        self._fetch_all_servers(connection)
-                    else:
-                        logger.error('Operation not known by server discoverer!')
-                except Exception as e:
-                    logger.error(f'Server discoverer -> An error occurred: {e}')
-                    traceback.print_exc()
+                message_id, addr, port, sn_addr, sn_port = struct.unpack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, data)
+                addr = socket.inet_ntoa(addr)
+                sn_addr = socket.inet_ntoa(sn_addr)
+
+                if message_id == 0:
+                    self._connect(addr, port, sn_addr, sn_port)
+                elif message_id == 1:
+                    # To do: implement disconnect on servers
+                    self._disconnect(addr, port, sn_addr, sn_port)
+                elif message_id == 2:
+                    self._fetch_all_servers(connection)
+                else:
+                    logger.error('Operation not known by server discoverer!')
+            except Exception as e:
+                logger.error(f'Server discoverer -> An error occurred: {e}')
+                traceback.print_exc()
 
     def _connect(self, address, port, sn_address, sn_port):
         logger.info(f'Server discoverer adding: Address -> {address}, Port -> {port}, SN Address -> {sn_address}, SN Port -> {sn_port}')
@@ -71,4 +74,3 @@ class ServerDiscoverer:
         connection.sendall(serialized_server_data)
 
         logger.info('Server discoverer finished sending all servers')
-
