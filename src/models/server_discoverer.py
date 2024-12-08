@@ -7,6 +7,7 @@ import threading
 from utils.constants import Constants
 from utils.logger import logger
 
+
 class ServerDiscoverer:
     def __init__(self):
         self._servers = []
@@ -30,16 +31,20 @@ class ServerDiscoverer:
         with connection:
             try:
                 data, _ = connection.recvfrom(4096)
+                logger.info(f'Received message {data}')
 
                 message_id, addr, port, sn_addr, sn_port = struct.unpack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, data)
                 addr = socket.inet_ntoa(addr)
                 sn_addr = socket.inet_ntoa(sn_addr)
 
                 if message_id == 0:
+                    logger.info('Received connect request')
                     self._connect(addr, port, sn_addr, sn_port)
                 elif message_id == 1:
+                    logger.info('Received disconnect request')
                     self._disconnect(addr, port, sn_addr, sn_port)
                 elif message_id == 2:
+                    logger.info('Received fetch all servers request')
                     self._fetch_all_servers(connection)
                 else:
                     logger.error('Operation not known by server discoverer!')

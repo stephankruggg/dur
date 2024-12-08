@@ -49,7 +49,7 @@ class ServerKeyValueStore:
 
         source_path = Constants.FOLDER_NAME / str(Constants.EXAMPLE_INSTACE) / 'data'
         if not os.path.isfile(source_path):
-            logger.warning('No model DB provided. Skipping creating a copy.')
+            logger.warning('No model database provided. Skipping creation a copy.')
             return
 
         with shelve.open(source_path) as source:
@@ -58,7 +58,7 @@ class ServerKeyValueStore:
                     destination[key] = value
                     print((key, value))
 
-        logger.info('Data successfully copied from model DB!')
+        logger.info('Data successfully copied from model database!')
 
     def _connect_to_server_discoverer(self):
         logger.info('Attempting to get known by the server discoverer.')
@@ -96,7 +96,7 @@ class ServerKeyValueStore:
     def _run(self):
         try:
             while True:
-                logger.info('KVS Server listening...')
+                logger.info('KVS Server listening')
 
                 connection, address = self._socket.accept()
                 logger.info(f'KVS Server connected to {address}')
@@ -111,10 +111,13 @@ class ServerKeyValueStore:
     def _handle_connection(self, connection):
         try:
             data = connection.recv(4096)
+            logger.info(f'Received request {data}')
 
             if data[0] == 0:
+                logger.info('Received fetch value request')
                 self._fetch_value(data, connection)
             elif data[0] == 1:
+                logger.info('Received commit request')
                 self._deliver_transaction(data)
         except Exception as e:
             logger.error(f'Server KVS -> An error occurred: {e}')
@@ -136,7 +139,7 @@ class ServerKeyValueStore:
             connection.close()
             return
 
-        logger.info(f'Server KVS sending value of item {item}')
+        logger.info(f'Server KVS sending value of item {item}: Message -> {message}')
         connection.sendall(message)
 
     def _deliver_transaction(self, data):
