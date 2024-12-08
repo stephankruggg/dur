@@ -18,7 +18,12 @@ O programa possui um arquivo de configurações: `src/utils/constants.py`. Nele 
 - Consultar o formato das mensagens trocadas entre os integrantes dos sistemas.
 
 ## Execução
-Para executar, abra um terminal e execute o comando para iniciar o servidor descobridor:
+Para a execução do DUR, é necessária a instalação de algumas bibliotecas listadas no arquivo `requirements.txt`. Para isso, abra um terminal e execute o seguinte comando:
+``` bash
+make install
+```
+
+Para iniciar a execução do sistema, execute o comando para iniciar o servidor descobridor:
 ``` bash
 make runsd
 ```
