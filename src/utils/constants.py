@@ -1,8 +1,8 @@
 from pathlib import Path
 
 class Constants:
-    EXAMPLE_INSTACE = 1
     FOLDER_NAME = Path('examples')
+    EXAMPLE_INSTACE = 1
 
     SERVER_KEY_VALUE_STORE_ADDRESS = '127.0.0.1'
     SERVER_KEY_VALUE_STORE_BASE_PORT = 5000
