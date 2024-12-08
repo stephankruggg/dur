@@ -7,6 +7,7 @@ import pickle
 import threading
 
 from utils.constants import Constants
+from utils.exceptions import ServerDiscovererNotFoundException
 from utils.logger import logger
 
 
@@ -62,14 +63,17 @@ class ServerKeyValueStore:
     def _connect_to_server_discoverer(self):
         logger.info('Attempting to get known by the server discoverer.')
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((Constants.SERVER_DISCOVERER_ADDRESS, Constants.SERVER_DISCOVERER_PORT))
+        try:    
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((Constants.SERVER_DISCOVERER_ADDRESS, Constants.SERVER_DISCOVERER_PORT))
 
-            message = struct.pack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, 0, socket.inet_aton(self._address), self._port, socket.inet_aton(self._sequence_number_address), self._sequence_number_port)
+                message = struct.pack(Constants.SERVER_DISCOVERER_REQUEST_FORMAT, 0, socket.inet_aton(self._address), self._port, socket.inet_aton(self._sequence_number_address), self._sequence_number_port)
 
-            s.send(message)
+                s.send(message)
 
-            logger.info('Server now known!')
+                logger.info('Server now known!')
+        except Exception:
+            raise ServerDiscovererNotFoundException()
 
     def _receive_sequence_numbers(self):
         while True:
@@ -101,6 +105,8 @@ class ServerKeyValueStore:
         except KeyboardInterrupt:
             logger.info('Exit command received.')
             self._disconnect()
+
+            return
 
     def _handle_connection(self, connection):
         try:
@@ -213,5 +219,4 @@ class ServerKeyValueStore:
 
             s.send(message)
 
-            # To do: Finish run
             logger.info('Server now disconnected!')
