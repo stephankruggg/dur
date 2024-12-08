@@ -56,7 +56,6 @@ class ServerKeyValueStore:
             with shelve.open(self._database_path / 'db') as destination:
                 for key, value in source.items():
                     destination[key] = value
-                    print((key, value))
 
         logger.info('Data successfully copied from model database!')
 
