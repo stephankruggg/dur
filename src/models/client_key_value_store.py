@@ -2,6 +2,7 @@ import socket
 import struct
 import pickle
 import random
+import time
 import traceback
 
 from utils.constants import Constants
@@ -146,6 +147,8 @@ class ClientKeyValueStore:
                 s.connect((server_address, server_port))
 
                 s.send(message)
+
+            time.sleep(10)
 
         connection, _ = awaiting_response_socket.accept()
 
