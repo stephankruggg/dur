@@ -13,7 +13,6 @@ from utils.logger import logger
 
 class ServerKeyValueStore:
     def __init__(self, id):
-        self._last_commited = 0
         self._holdback = {}
         self._sequence_number = 0
 
@@ -35,7 +34,7 @@ class ServerKeyValueStore:
         self._sequence_number_socket.bind((self._sequence_number_address, self._sequence_number_port))
         self._sequence_number_socket.listen(3)
 
-        self._holdback_lock = threading.Lock()
+        self._holdback_condition = threading.Condition()
 
         threading.Thread(target=self._receive_sequence_numbers).start()
 
@@ -86,11 +85,12 @@ class ServerKeyValueStore:
 
                 logger.info(f'Server KVS received sequence number {sn} for: Address {address}, Port {port}, Transaction ID {t_id}')
 
-            logger.info(f'Server KVS updating holdback')
-            self._holdback[(address, port, t_id)] = sn
+            with self._holdback_condition:
+                logger.info(f'Server KVS updating holdback')
+                self._holdback[(address, port, t_id)] = sn
 
-            logger.info('Server KVS notifying all listeners of the holdback update')
-            self._holdback_lock.release()
+                logger.info('Server KVS notifying all listeners of the holdback update')
+                self._holdback_condition.notify_all()
 
     def _run(self):
         try:
@@ -116,7 +116,6 @@ class ServerKeyValueStore:
                 logger.info('Received fetch value request')
                 self._fetch_value(data, connection)
             elif data[0] == 1:
-                logger.info('Received commit request')
                 self._deliver_transaction(data)
         except Exception as e:
             logger.error(f'Server KVS -> An error occurred: {e}')
@@ -151,46 +150,55 @@ class ServerKeyValueStore:
 
         holdback_key = (requester_address, requester_port, message_id)
 
-        while holdback_key not in self._holdback.keys() or self._holdback[holdback_key] != self._sequence_number:
-            logger.info(f'Server KVS waiting for sequence number for transaction {message_id}')
-            self._holdback_lock.acquire()
+        with self._holdback_condition:
+            while self._holdback.get(holdback_key) != self._sequence_number:
+                logger.info(f'Server KVS waiting for sequence number for: Address -> {requester_address}, Port -> {requester_port}, Transaction -> {message_id}')
+                self._holdback_condition.wait()
 
-        with shelve.open(Constants.FOLDER_NAME / str(Constants.EXAMPLE_INSTACE) / f'server{self._id}' / 'db') as db:
-            for key, value in read_set.items():
-                try:
-                    item_version = db[key][0]
-                    if item_version > value[1]:
-                        logger.warning(f'Client KVS has read an out of date version of item {key}. Current version {item_version}, CKVS version {value[1]}. Transaction needs to be aborted.')
-                        self._respond_to_client(requester_address, requester_port, False)
-                        return
-                except KeyError:
-                    pass
+            with shelve.open(Constants.FOLDER_NAME / str(Constants.EXAMPLE_INSTACE) / f'server{self._id}' / 'db') as db:
+                if self._read_outdated_version(read_set, db):
+                    self._abort(requester_address, requester_port, holdback_key)
+                    return
 
-            self._last_commited += 1
+                self._commit(write_set, db, requester_address, requester_port, holdback_key)
 
-            for key, value in write_set.items():
-                try:
-                    next_version = db[key][0] + 1
+    def _read_outdated_version(self, read_set, db):
+        logger.info('Verifying item versions from read set compared to current database')
+        for key, value in read_set.items():
+            try:
+                item_version = db[key][0]
+                if item_version > value[1]:
+                    logger.warning(f'Client KVS has read an out of date version of item {key}. Current version {item_version}, CKVS version {value[1]}. Transaction needs to be aborted')
+                    return True
+            except KeyError:
+                pass
 
-                    logger.info(f'Server KVS updating version and value of item {key}: ({next_version - 1}, {db[key][1]}) -> ({next_version}, {value})')
-                except KeyError:
-                    next_version = 0
+        logger.info('No outdated version reading detected')
+        return False
 
-                    logger.info(f'Server KVS creating item {key}: (0, {value})')
+    def _abort(self, requester_address, requester_port, holdback_key):
+        logger.warning('Aborting transaction')
+        self._respond_to_client(requester_address, requester_port, False)
 
-                db[key] = (next_version, value)
+        self._update_holdback(holdback_key)
+
+    def _commit(self, write_set, db, requester_address, requester_port, holdback_key):
+        for key, value in write_set.items():
+            try:
+                next_version = db[key][0] + 1
+
+                logger.info(f'Server KVS updating version and value of item {key}: ({next_version - 1}, {db[key][1]}) -> ({next_version}, {value})')
+            except KeyError:
+                next_version = 0
+
+                logger.info(f'Server KVS creating item {key}: (0, {value})')
+
+            db[key] = (next_version, value)
 
         logger.info(f'Server KVS finished commiting the transaction')
         self._respond_to_client(requester_address, requester_port, True)
 
-        logger.info('Server KVS removing transaction from holdback')
-        del self._holdback[holdback_key]
-
-        logger.info('Server KVS updating sequence number')
-        self._sequence_number += 1
-
-        logger.info('Server KVS notifying all listeners of the sequence number update')
-        self._holdback_lock.release()
+        self._update_holdback(holdback_key)
 
     def _respond_to_client(self, address, port, commit):
         if commit:
@@ -209,7 +217,16 @@ class ServerKeyValueStore:
                 s.send(message)
         except Exception as e:
             logger.error(f'Server KVS -> An error occurred: {e}')
-            return
+
+    def _update_holdback(self, holdback_key):
+        logger.info('Server KVS removing transaction from holdback')
+        del self._holdback[holdback_key]
+
+        logger.info('Server KVS updating sequence number')
+        self._sequence_number += 1
+
+        logger.info('Server KVS notifying all listeners of the sequence number update')
+        self._holdback_condition.notify_all()
 
     def _disconnect(self):
         logger.info('Attempting to disconnect server from the server discoverer.')
