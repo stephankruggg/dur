@@ -61,10 +61,11 @@ class ServerSequencer:
             return
 
         _, requester_address, requester_port, message_id = struct.unpack(Constants.DELIVER_REQUEST_INITIAL_FORMAT, data[:11])
+        formatted_requester_address = socket.inet_ntoa(requester_address)
 
         message = struct.pack(Constants.SERVER_SEQUENCER_FORMAT, requester_address, requester_port, message_id, self._sequence_number)
 
-        logger.info(f'Requesting sequence number: Requester address -> {requester_address}, Requester port -> {requester_port}, Message ID -> {message_id}, Message -> {message}')
+        logger.info(f'Requesting sequence number: Requester address -> {formatted_requester_address}, Requester port -> {requester_port}, Message ID -> {message_id}, Message -> {message}')
 
         logger.info('Attempting to send sequence number to every Server KVS.')
         for server_address, server_port, server_sn_address, server_sn_port in self._fetch_all_servers():
@@ -72,7 +73,7 @@ class ServerSequencer:
                 continue
 
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                logger.info(f'Server sequencer sending sequence number to server KVS: Sequence number -> {self._sequence_number}, Address -> {server_sn_address}, Port -> {server_sn_port}')
+                logger.info(f'Server sequencer sending sequence number to server KVS: Requester address -> {formatted_requester_address}, Requester port -> {requester_port}, Sequence number -> {self._sequence_number}, Address -> {server_sn_address}, Port -> {server_sn_port}')
                 s.connect((server_sn_address, server_sn_port))
 
                 s.send(message)
